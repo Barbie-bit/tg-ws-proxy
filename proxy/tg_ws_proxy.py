@@ -774,25 +774,26 @@ _server_stop_event = None
 
 
 async def _run(port: int, dc_opt: Dict[int, Optional[str]],
-               stop_event: Optional[asyncio.Event] = None):
+               stop_event: Optional[asyncio.Event] = None,
+               host: str = '127.0.0.1'):
     global _dc_opt, _server_instance, _server_stop_event
     _dc_opt = dc_opt
     _server_stop_event = stop_event
 
     server = await asyncio.start_server(
-        _handle_client, '127.0.0.1', port)
+        _handle_client, host, port)
     _server_instance = server
 
     log.info("=" * 60)
     log.info("  Telegram WS Bridge Proxy")
-    log.info("  Listening on   127.0.0.1:%d", port)
+    log.info("  Listening on   %s:%d", host, port)
     log.info("  Target DC IPs:")
     for dc in dc_opt.keys():
         ip = dc_opt.get(dc)
         log.info("    DC%d: %s", dc, ip)
     log.info("=" * 60)
     log.info("  Configure Telegram Desktop:")
-    log.info("    SOCKS5 proxy -> 127.0.0.1:%d  (no user/pass)", port)
+    log.info("    SOCKS5 proxy -> %s:%d  (no user/pass)", host, port)
     log.info("=" * 60)
 
     async def log_stats():
@@ -844,9 +845,10 @@ def parse_dc_ip_list(dc_ip_list: List[str]) -> Dict[int, str]:
 
 
 def run_proxy(port: int, dc_opt: Dict[int, str],
-              stop_event: Optional[asyncio.Event] = None):
+              stop_event: Optional[asyncio.Event] = None,
+              host: str = '127.0.0.1'):
     """Run the proxy (blocking). Can be called from threads."""
-    asyncio.run(_run(port, dc_opt, stop_event))
+    asyncio.run(_run(port, dc_opt, stop_event, host))
 
 
 def main():
@@ -854,6 +856,8 @@ def main():
         description='Telegram Desktop WebSocket Bridge Proxy')
     ap.add_argument('--port', type=int, default=DEFAULT_PORT,
                     help=f'Listen port (default {DEFAULT_PORT})')
+    ap.add_argument('--host', type=str, default='127.0.0.1',
+                    help='Listen host (default 127.0.0.1)')
     ap.add_argument('--dc-ip', metavar='DC:IP', action='append',
                     default=['2:149.154.167.220', '4:149.154.167.220'],
                     help='Target IP for a DC, e.g. --dc-ip 1:149.154.175.205'
@@ -875,7 +879,7 @@ def main():
     )
 
     try:
-        asyncio.run(_run(args.port, dc_opt))
+        asyncio.run(_run(args.port, dc_opt, host=args.host))
     except KeyboardInterrupt:
         log.info("Shutting down. Final stats: %s", _stats.summary())
 

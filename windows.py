@@ -29,6 +29,7 @@ FIRST_RUN_MARKER = APP_DIR / ".first_run_done"
 
 DEFAULT_CONFIG = {
     "port": 1080,
+    "host": "127.0.0.1",
     "dc_ip": ["2:149.154.167.220", "4:149.154.167.220"],
     "verbose": False,
 }
@@ -145,7 +146,8 @@ def _load_icon():
 
 
 
-def _run_proxy_thread(port: int, dc_opt: Dict[int, str], verbose: bool):
+def _run_proxy_thread(port: int, dc_opt: Dict[int, str], verbose: bool,
+                      host: str = '127.0.0.1'):
     global _async_stop
     loop = _asyncio.new_event_loop()
     _asyncio.set_event_loop(loop)
@@ -154,7 +156,7 @@ def _run_proxy_thread(port: int, dc_opt: Dict[int, str], verbose: bool):
 
     try:
         loop.run_until_complete(
-            tg_ws_proxy._run(port, dc_opt, stop_event=stop_ev))
+            tg_ws_proxy._run(port, dc_opt, stop_event=stop_ev, host=host))
     except Exception as exc:
         log.error("Proxy thread crashed: %s", exc)
         if "10048" in str(exc) or "Address already in use" in str(exc):
@@ -172,6 +174,7 @@ def start_proxy():
 
     cfg = _config
     port = cfg.get("port", DEFAULT_CONFIG["port"])
+    host = cfg.get("host", DEFAULT_CONFIG["host"])
     dc_ip_list = cfg.get("dc_ip", DEFAULT_CONFIG["dc_ip"])
     verbose = cfg.get("verbose", False)
 
@@ -182,10 +185,10 @@ def start_proxy():
         _show_error(f"Ошибка конфигурации:\n{e}")
         return
 
-    log.info("Starting proxy on port %d ...", port)
+    log.info("Starting proxy on %s:%d ...", host, port)
     _proxy_thread = threading.Thread(
         target=_run_proxy_thread,
-        args=(port, dc_opt, verbose),
+        args=(port, dc_opt, verbose, host),
         daemon=True, name="proxy")
     _proxy_thread.start()
 
@@ -217,8 +220,9 @@ def _show_info(text: str, title: str = "TG WS Proxy"):
 
 
 def _on_open_in_telegram(icon=None, item=None):
+    host = _config.get("host", DEFAULT_CONFIG["host"])
     port = _config.get("port", DEFAULT_CONFIG["port"])
-    url = f"tg://socks?server=127.0.0.1&port={port}"
+    url = f"tg://socks?server={host}&port={port}"
     log.info("Opening %s", url)
     try:
         result = webbrowser.open(url)
@@ -269,7 +273,7 @@ def _edit_config_dialog():
     TEXT_SECONDARY = "#707579"
     FONT_FAMILY = "Segoe UI"
 
-    w, h = 420, 400
+    w, h = 420, 480
     sw = root.winfo_screenwidth()
     sh = root.winfo_screenheight()
     root.geometry(f"{w}x{h}+{(sw-w)//2}+{(sh-h)//2}")
@@ -277,6 +281,17 @@ def _edit_config_dialog():
 
     frame = ctk.CTkFrame(root, fg_color=BG, corner_radius=0)
     frame.pack(fill="both", expand=True, padx=24, pady=20)
+
+    # Host
+    ctk.CTkLabel(frame, text="IP-адрес прокси",
+                 font=(FONT_FAMILY, 13), text_color=TEXT_PRIMARY,
+                 anchor="w").pack(anchor="w", pady=(0, 4))
+    host_var = ctk.StringVar(value=cfg.get("host", "127.0.0.1"))
+    host_entry = ctk.CTkEntry(frame, textvariable=host_var, width=200, height=36,
+                              font=(FONT_FAMILY, 13), corner_radius=10,
+                              fg_color=FIELD_BG, border_color=FIELD_BORDER,
+                              border_width=1, text_color=TEXT_PRIMARY)
+    host_entry.pack(anchor="w", pady=(0, 12))
 
     # Port
     ctk.CTkLabel(frame, text="Порт прокси",
@@ -315,6 +330,14 @@ def _edit_config_dialog():
                  anchor="w").pack(anchor="w", pady=(0, 16))
 
     def on_save():
+        import socket as _sock
+        host_val = host_var.get().strip()
+        try:
+            _sock.inet_aton(host_val)
+        except OSError:
+            _show_error("Некорректный IP-адрес.")
+            return
+
         try:
             port_val = int(port_var.get().strip())
             if not (1 <= port_val <= 65535):
@@ -332,6 +355,7 @@ def _edit_config_dialog():
             return
 
         new_cfg = {
+            "host": host_val,
             "port": port_val,
             "dc_ip": lines,
             "verbose": verbose_var.get(),
@@ -339,6 +363,8 @@ def _edit_config_dialog():
         save_config(new_cfg)
         _config.update(new_cfg)
         log.info("Config saved: %s", new_cfg)
+
+        _tray_icon.menu = _build_menu()
 
         from tkinter import messagebox
         if messagebox.askyesno("Перезапустить?",
@@ -401,8 +427,9 @@ def _show_first_run():
     if FIRST_RUN_MARKER.exists():
         return
 
+    host = _config.get("host", DEFAULT_CONFIG["host"])
     port = _config.get("port", DEFAULT_CONFIG["port"])
-    tg_url = f"tg://socks?server=127.0.0.1&port={port}"
+    tg_url = f"tg://socks?server={host}&port={port}"
 
     if ctk is None:
         FIRST_RUN_MARKER.touch()
@@ -454,7 +481,7 @@ def _show_first_run():
         (f"  Или ссылка: {tg_url}", False),
         ("\n  Вручную:", True),
         ("  Настройки → Продвинутые → Тип подключения → Прокси", False),
-        (f"  SOCKS5 → 127.0.0.1 : {port} (без логина/пароля)", False),
+        (f"  SOCKS5 → {host} : {port} (без логина/пароля)", False),
     ]
 
     for text, bold in sections:
@@ -500,10 +527,11 @@ def _show_first_run():
 def _build_menu():
     if pystray is None:
         return None
+    host = _config.get("host", DEFAULT_CONFIG["host"])
     port = _config.get("port", DEFAULT_CONFIG["port"])
     return pystray.Menu(
         pystray.MenuItem(
-            f"Открыть в Telegram (:{port})",
+            f"Открыть в Telegram ({host}:{port})",
             _on_open_in_telegram,
             default=True),
         pystray.Menu.SEPARATOR,
