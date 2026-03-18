@@ -40,11 +40,39 @@ Telegram Desktop → SOCKS5 (127.0.0.1:1080) → TG WS Proxy → WSS → Telegra
 - **Открыть логи** — открыть файл логов
 - **Выход** — остановить прокси и закрыть приложение
 
-### MacOS (Tray-приложение)
+### macOS
+Перейдите на [страницу релизов](https://github.com/Flowseal/tg-ws-proxy/releases) и скачайте **`TgWsProxy.dmg`** — универсальная сборка для Apple Silicon и Intel.
 
-<<<<<<< build/pyproject-migration
+1. Открыть образ
+2. Перенести **TG WS Proxy.app** в папку **Applications**
+3. При первом запуске macOS может попросить подтвердить открытие: **Системные настройки → Конфиденциальность и безопасность → Всё равно открыть**
+
+## Установка из исходников
+
+### Консольный proxy
+
+Для запуска только SOCKS5/WebSocket proxy без tray-интерфейса достаточно базовой установки:
+
+```bash
+pip install -e .
+```
+
+После этого доступна команда:
+
+```bash
+tg-ws-proxy
+```
+
+### Windows 10+
+
 ```bash
 pip install -e ".[win10]"
+```
+
+Запуск tray-приложения:
+
+```bash
+tg-ws-proxy-tray-win
 ```
 
 ### Windows 7
@@ -53,18 +81,23 @@ pip install -e ".[win10]"
 pip install -e ".[win7]"
 ```
 
-### Windows (Tray-приложение)
+Запуск tray-приложения:
 
 ```bash
-tg-ws-proxy-tray
+tg-ws-proxy-tray-win
 ```
-=======
-Перейдите на [страницу релизов](https://github.com/Flowseal/tg-ws-proxy/releases) и скачайте **`TgWsProxy.dmg`** — универсальная сборка для Apple Silicon и Intel.
 
-1. Открыть образ
-2. Перенести **TG WS Proxy.app** в папку **Applications**
-3. При первом запуске macOS может попросить подтвердить открытие: **Системные настройки → Конфиденциальность и безопасность → Всё равно открыть**
->>>>>>> main
+### macOS
+
+```bash
+pip install -e ".[macos]"
+```
+
+Запуск tray-приложения:
+
+```bash
+tg-ws-proxy-tray-macos
+```
 
 ### Консольный режим из исходников
 
@@ -103,7 +136,8 @@ CLI команды объявляются в `pyproject.toml` в секции `[
 ```toml
 [project.scripts]
 tg-ws-proxy = "proxy.tg_ws_proxy:main"
-tg-ws-proxy-tray = "windows:main"
+tg-ws-proxy-tray-win = "windows:main"
+tg-ws-proxy-tray-macos = "macos:main"
 ```
 
 ## Настройка Telegram Desktop
@@ -139,6 +173,12 @@ Tray-приложение хранит данные в `%APPDATA%/TgWsProxy`:
 ## Автоматическая сборка
 
 Проект содержит спецификации PyInstaller ([`packaging/windows.spec`](packaging/windows.spec), [`packaging/macos.spec`](packaging/macos.spec)) и GitHub Actions workflow ([`.github/workflows/build.yml`](.github/workflows/build.yml)) для автоматической сборки.
+
+Минимально поддерживаемые версии ОС для текущих бинарных сборок:
+- Windows 10+ для `TgWsProxy.exe`
+- Windows 7 для `TgWsProxy-win7.exe`
+- Intel macOS 10.15+
+- Apple Silicon macOS 11.0+
 
 ## Лицензия
 
